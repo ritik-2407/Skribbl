@@ -3,6 +3,8 @@ import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Server } from 'socket.io';
+import { RoomManager } from './RoomManager.js';
+import { MessageHandler } from './MessageHandler.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3001;
@@ -27,15 +29,12 @@ app.get('*', (_req, res, next) => {
   res.sendFile(path.join(clientDist, 'index.html'), (err) => err && next());
 });
 
-// 4. v0: a simple ping/pong so we can prove the real-time pipe works end to end.
+// 4. Every new connection gets its own MessageHandler; all rooms live in one RoomManager.
+const roomManager = new RoomManager(io);
+
 io.on('connection', (socket) => {
   console.log(`[socket] connected: ${socket.id}`);
-
-  socket.on('ping_server', (payload, ack) => {
-    console.log(`[socket] ping from ${socket.id}:`, payload);
-    ack({ message: 'pong from server', receivedAt: Date.now(), yourId: socket.id });
-  });
-
+  new MessageHandler(io, socket, roomManager).register();
   socket.on('disconnect', (reason) => {
     console.log(`[socket] disconnected: ${socket.id} (${reason})`);
   });

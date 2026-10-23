@@ -1,51 +1,65 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { socket } from './socket.js';
+import Home from './components/Home.jsx';
+import Lobby from './components/Lobby.jsx';
 
+// App is the single owner of "which screen" + "room state".
+// The server is the source of truth: we never edit the player list ourselves,
+// we only replace it with what the server broadcasts.
 export default function App() {
   const [connected, setConnected] = useState(false);
-  const [socketId, setSocketId] = useState(null);
-  const [reply, setReply] = useState(null);
+  const [playerId, setPlayerId] = useState(null);
+  const [room, setRoom] = useState(null); // null => Home screen
 
   useEffect(() => {
-    const onConnect = () => {
-      setConnected(true);
-      setSocketId(socket.id);
+    const onConnect = () => setConnected(true);
+    const onDisconnect = () => {
+      setConnected(false);
+      // v4 will add reconnect-to-room. For now a dropped socket = back to home.
+      setRoom(null);
+      setPlayerId(null);
     };
-    const onDisconnect = () => setConnected(false);
+
+    // Merge helpers: always use functional updates so we never read stale state.
+    const onPlayerJoined = ({ players }) => setRoom((r) => r && { ...r, players });
+    const onPlayerLeft = ({ players, hostId }) => setRoom((r) => r && { ...r, players, hostId });
+    const onPlayersUpdate = ({ players, hostId }) => setRoom((r) => r && { ...r, players, hostId });
+    const onGameState = ({ phase }) => setRoom((r) => r && { ...r, phase });
 
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
+    socket.on('player_joined', onPlayerJoined);
+    socket.on('player_left', onPlayerLeft);
+    socket.on('players_update', onPlayersUpdate);
+    socket.on('game_state', onGameState);
     socket.connect();
 
-    // Cleanup: remove listeners + disconnect. Without this, StrictMode's
-    // double-mount in dev would register every listener twice.
     return () => {
       socket.off('connect', onConnect);
       socket.off('disconnect', onDisconnect);
+      socket.off('player_joined', onPlayerJoined);
+      socket.off('player_left', onPlayerLeft);
+      socket.off('players_update', onPlayersUpdate);
+      socket.off('game_state', onGameState);
       socket.disconnect();
     };
   }, []);
 
-  const sendPing = () => {
-    // The 3rd argument of emit is an "acknowledgement" callback: the server
-    // calls it, and the data comes back to this function (request/response).
-    socket.emit('ping_server', { hello: 'from client' }, (response) => {
-      setReply(response);
-    });
-  };
+  // Called by Home after the server confirms create/join.
+  const enterRoom = useCallback((res) => {
+    setPlayerId(res.playerId);
+    setRoom(res.room);
+  }, []);
+
+  if (!connected) {
+    return <main className="container"><h1>Skribbl Clone</h1><p>Connecting to server...</p></main>;
+  }
 
   return (
     <main className="container">
       <h1>Skribbl Clone</h1>
-      <p>
-        Status:{' '}
-        <strong className={connected ? 'ok' : 'bad'}>
-          {connected ? 'connected' : 'disconnected'}
-        </strong>
-      </p>
-      {socketId && <p>Your socket id: <code>{socketId}</code></p>}
-      <button onClick={sendPing} disabled={!connected}>Ping server</button>
-      {reply && <pre>{JSON.stringify(reply, null, 2)}</pre>}
+      {!room && <Home onEnter={enterRoom} />}
+      {room && <Lobby room={room} playerId={playerId} />}
     </main>
   );
 }
