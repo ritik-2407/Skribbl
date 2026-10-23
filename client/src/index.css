@@ -1,0 +1,29 @@
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  background: #1e2a4a;
+  color: #fff;
+}
+
+.container {
+  max-width: 640px;
+  margin: 60px auto;
+  padding: 0 16px;
+}
+
+button {
+  padding: 10px 18px;
+  font-size: 16px;
+  border: 0;
+  border-radius: 8px;
+  background: #4caf50;
+  color: #fff;
+  cursor: pointer;
+}
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+pre { background: #111a33; padding: 12px; border-radius: 8px; overflow: auto; }
+.ok { color: #7CFC9A; }
+.bad { color: #ff7b7b; }
