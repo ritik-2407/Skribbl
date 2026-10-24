@@ -1,4 +1,5 @@
 import { Player } from './Player.js';
+import { DrawingBoard } from './DrawingBoard.js';
 
 // A Room owns: its players, its settings, and its phase.
 // It also knows how to broadcast to everyone inside it.
@@ -11,6 +12,8 @@ export class Room {
     this.hostId = hostId;
     this.phase = 'lobby'; // 'lobby' | 'playing' | 'ended'
     this.players = new Map(); // socket.id -> Player (Map keeps insertion order = join order)
+    this.drawerId = null; // who may draw right now (v3 rotates this per round)
+    this.board = new DrawingBoard();
   }
 
   get isFull() {
@@ -51,6 +54,7 @@ export class Room {
       code: this.code,
       phase: this.phase,
       hostId: this.hostId,
+      drawerId: this.drawerId,
       settings: this.settings,
       players: this.playersPublic(),
     };

@@ -19,7 +19,59 @@ export class MessageHandler {
     s.on('join_room', (data, ack) => this.safe(ack, () => this.onJoinRoom(data, ack)));
     s.on('toggle_ready', (_data, ack) => this.safe(ack, () => this.onToggleReady(ack)));
     s.on('start_game', (_data, ack) => this.safe(ack, () => this.onStartGame(ack)));
+    // Drawing events are fire-and-forget (no ack): they fire dozens of times per second.
+    s.on('draw_start', (d) => this.safe(null, () => this.onDrawStart(d)));
+    s.on('draw_move', (d) => this.safe(null, () => this.onDrawMove(d)));
+    s.on('draw_end', () => this.safe(null, () => this.onDrawEnd()));
+    s.on('canvas_clear', () => this.safe(null, () => this.onCanvasClear()));
+    s.on('draw_undo', () => this.safe(null, () => this.onDrawUndo()));
     s.on('disconnect', () => this.onDisconnect());
+  }
+
+  // Returns the room only if this socket is allowed to draw right now.
+  // Authorization lives on the SERVER: a hacked client can't draw out of turn.
+  drawingRoom() {
+    const room = this.currentRoom();
+    if (!room || room.phase !== 'playing') return null;
+    if (room.drawerId !== this.socket.id) return null;
+    return room;
+  }
+
+  onDrawStart(data) {
+    const room = this.drawingRoom();
+    if (!room) return;
+    const clean = room.board.start(data);
+    if (!clean) return;
+    // socket.to(...) = everyone in the room EXCEPT the drawer (who already drew locally).
+    this.socket.to(room.code).emit('draw_data', { type: 'start', ...clean });
+  }
+
+  onDrawMove(data) {
+    const room = this.drawingRoom();
+    if (!room) return;
+    const points = room.board.move(data?.points);
+    if (!points) return;
+    this.socket.to(room.code).emit('draw_data', { type: 'move', points });
+  }
+
+  onDrawEnd() {
+    const room = this.drawingRoom();
+    if (!room) return;
+    if (room.board.end()) this.socket.to(room.code).emit('draw_data', { type: 'end' });
+  }
+
+  onCanvasClear() {
+    const room = this.drawingRoom();
+    if (!room) return;
+    room.board.clear();
+    this.socket.to(room.code).emit('canvas_clear');
+  }
+
+  onDrawUndo() {
+    const room = this.drawingRoom();
+    if (!room) return;
+    room.board.undo();
+    this.socket.to(room.code).emit('draw_undo');
   }
 
   // Never let a bad payload crash the whole server process.
@@ -102,8 +154,9 @@ export class MessageHandler {
     if (!room.allGuestsReady()) return ack({ ok: false, error: 'Waiting for players to ready up' });
 
     room.phase = 'playing';
-    // v3 replaces this with a real Game object and round_start events.
-    room.broadcast('game_state', { phase: room.phase, round: 0, drawerId: null });
+    // v2 placeholder: the host draws. v3 replaces this with real turn rotation.
+    room.drawerId = room.hostId;
+    room.broadcast('game_state', { phase: room.phase, round: 0, drawerId: room.drawerId });
     ack({ ok: true });
   }
 
@@ -115,6 +168,13 @@ export class MessageHandler {
     if (room.isEmpty) {
       this.roomManager.deleteRoom(room.code); // no leaks: empty rooms are removed
       return;
+    }
+    // If the drawer left mid-game, hand the pen to the (possibly new) host.
+    if (room.phase === 'playing' && room.drawerId === this.socket.id) {
+      room.drawerId = room.hostId;
+      room.board.clear();
+      room.broadcast('game_state', { phase: room.phase, round: 0, drawerId: room.drawerId });
+      room.broadcast('canvas_clear');
     }
     room.broadcast('player_left', {
       playerId: this.socket.id,

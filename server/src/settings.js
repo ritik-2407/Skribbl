@@ -1,6 +1,6 @@
 // Room settings: defaults + SERVER-SIDE validation.
 // Never trust the client: a modified client could send maxPlayers=9999 or drawTime=-5.
-// Ranges come straight from the assignment PDF.
+
 
 export const LIMITS = {
   maxPlayers: { min: 2, max: 20 },

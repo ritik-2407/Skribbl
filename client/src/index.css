@@ -58,3 +58,22 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .players { list-style: none; padding: 0; }
 .players li { background: #3b4e85; padding: 8px 12px; border-radius: 6px; margin-bottom: 6px; }
 .bad { color: #ff9b9b; }
+
+/* canvas */
+.board {
+  width: 100%;
+  max-width: 800px;
+  aspect-ratio: 4 / 3;
+  background: #fff;
+  border-radius: 8px;
+  display: block;
+  touch-action: none; /* stop the browser scrolling/zooming while drawing on touch screens */
+}
+.board.drawable { cursor: crosshair; }
+.toolbar { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; }
+.swatches { display: flex; flex-wrap: wrap; gap: 6px; }
+.swatch { width: 32px; height: 32px; padding: 0; border: 2px solid #fff3; border-radius: 50%; }
+.swatch.selected { border-color: #fff; transform: scale(1.15); }
+.players.inline { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.players.inline li { margin: 0; }

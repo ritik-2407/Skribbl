@@ -13,15 +13,6 @@ export default function Lobby({ room, playerId }) {
     });
   };
 
-  if (room.phase === 'playing') {
-    return (
-      <div className="card">
-        <h2>Game started!</h2>
-        <p>The drawing and guessing screens arrive in v2 and v3.</p>
-      </div>
-    );
-  }
-
   const s = room.settings;
   return (
     <div className="card">
