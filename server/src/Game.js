@@ -5,6 +5,12 @@ const CHOOSE_SECONDS = 15;
 const ROUND_END_SECONDS = Number(process.env.ROUND_END_SECONDS) || 5;
 const MAX_MESSAGE_LENGTH = 100;
 
+// Scoring knobs (guesser: 50..500 per correct guess).
+const BASE_POINTS = 50;
+const TIME_POINTS = 300;
+const ORDER_BONUS = [150, 100, 50]; // 1st, 2nd, 3rd correct guesser
+const DRAWER_SHARE = 0.5; // drawer gets this fraction of the average guesser score
+
 // The game state machine for ONE room. The server owns all of this state;
 // clients only send intentions (pick word, guess) and render what we broadcast.
 //
@@ -172,11 +178,14 @@ export class Game {
     if (this.phase !== 'drawing') return;
     this.stopTimers();
 
-    // Drawer earns the AVERAGE of what guessers earned (guessers who failed count as 0),
-    // so drawing something guessable fast is rewarded, drawing nonsense is not.
+    // Drawer earns HALF the average guesser score (guessers who failed count as 0).
+    // Drawing something guessable fast is rewarded, nonsense earns ~0.
+    // It must be LESS than a guesser's share: if the drawer got the full average, then
+    // in a game where everyone draws once, every player's total would come out equal
+    // (with 2 players it is mathematically always a tie).
     const guessers = this.guesserIds().length;
     const total = [...this.guessed.values()].reduce((a, b) => a + b, 0);
-    const drawerPoints = guessers > 0 ? Math.round(total / guessers) : 0;
+    const drawerPoints = guessers > 0 ? Math.round((total / guessers) * DRAWER_SHARE) : 0;
     const drawer = this.room.getPlayer(this.drawerId);
     if (drawer) drawer.score += drawerPoints;
 
@@ -269,9 +278,11 @@ export class Game {
     const verdict = matchGuess(text, this.word);
 
     if (verdict === 'correct') {
-      // Faster guess = more points: 100 base + up to 400 for time remaining.
+      // Reward SPEED and being FIRST. Range 50..500:
+      //   50 base + up to 300 for time remaining + order bonus (1st +150, 2nd +100, 3rd +50).
       const ratio = Math.max(0, this.timeLeft) / this.settings.drawTime;
-      const points = 100 + Math.round(400 * ratio);
+      const orderBonus = ORDER_BONUS[this.guessed.size] ?? 0; // guessed.size = guessers before me
+      const points = BASE_POINTS + Math.round(TIME_POINTS * ratio) + orderBonus;
       player.score += points;
       this.guessed.set(player.id, points);
 

@@ -2,7 +2,19 @@
 
 A real-time multiplayer **drawing and guessing game** (like [skribbl.io](https://skribbl.io)) built with React, Node.js, Express and Socket.IO.
 
-> **Live URL:** _to be added after deployment_ (Railway)
+## Live demo
+
+| | Link |
+|---|---|
+| **Play the game (live URL)** | https://skribbl-clone-col1.onrender.com/ |
+
+> [!IMPORTANT]
+> **Free hosting notice: the first load can take up to a minute.**
+> The game runs on Render's free tier, which **puts the server to sleep after ~15 minutes without visitors**. The first person to arrive wakes it up, and Render shows its own generic "starting" page while that happens. Afterwards the game is fast for everyone.
+>
+> If the game doesn't load straight away, give it up to a minute (refresh once if Render's waiting page is still showing after that).
+>
+> Other limits of this hosting: a restart or redeploy ends games in progress (state lives in memory), and it runs as a single server instance. See [Known limitations](#13-known-limitations).
 
 One player draws a secret word, everyone else races to guess it. Faster guesses earn more points. After everyone has had a turn to draw, the player with the most points wins.
 
@@ -49,7 +61,8 @@ The hard part is making the drawing show up on everybody's screen instantly. For
 | Create room with settings (players, rounds, draw time, words, hints, word mode) | Done |
 | Join by 6-digit room code | Done |
 | Lobby with player list, ready-up, host starts the game | Done |
-| Private/public flag stored | Done (but there is **no public room browser** yet) |
+| Public rooms: browse and join open rooms (list capped at 10) | Done |
+| Private rooms and invite links (`/?room=CODE`) | Done |
 | Real-time drawing synced over WebSockets | Done |
 | Drawing tools: brush, 10 colors, 3 sizes, eraser, undo, clear | Done |
 | Turn-based rounds, rotating drawer | Done |
@@ -60,8 +73,8 @@ The hard part is making the drawing show up on everybody's screen instantly. For
 | Scoring, live scoreboard, round-end results | Done |
 | Game over screen, winner and leaderboard, play again | Done |
 | Countdown timer | Done |
-| Host moderation (kick/ban), reconnect after refresh, join links | **Not built yet** |
-| Deployed to the internet | **Not yet** |
+| Host moderation (kick/ban), reconnect after refresh | **Not built yet** |
+| Deployed to the internet (Render, free tier) | Done |
 
 ---
 
@@ -100,7 +113,7 @@ To test multiplayer alone, open **two or three browser tabs** (or one normal and
 |---|---|
 | `npm run install:all` | Installs packages for root, `server/` and `client/` |
 | `npm run dev` | Starts the game server (port 3001) and Vite (port 5173) together |
-| `npm run build` | Installs dependencies and builds the React app into `client/dist` |
+| `npm run build` | Installs server and client dependencies (including the dev tools the build needs, such as Vite) and builds the React app into `client/dist` |
 | `npm start` | Starts the production server (serves the built app + sockets) |
 
 ### Environment variables
@@ -279,9 +292,35 @@ stateDiagram-v2
 | Word choices | 1-5 | 3 | How many words the drawer can pick from |
 | Hints | 0-5 | 2 | How many letters get revealed over time |
 | Word mode | normal / hidden / combination | normal | See below |
-| Private | true / false | true | Stored; public browsing is not built yet |
+| Private | true / false | true | Private rooms are never listed. Public rooms appear in "Browse public" while in the lobby and not full |
 
 If someone sends values outside these ranges (for example by editing the page in DevTools), the server **clamps** them into range. For example, `rounds: 99` becomes `10`.
+
+### 7.1b Public rooms and invite links
+
+There are three ways to get into a room:
+
+| Way | How |
+|---|---|
+| **Code** | Type the 6-digit code on the "Join with code" tab |
+| **Invite link** | Open `/?room=CODE`. The code is pre-filled; you only add your name |
+| **Browse public** | The "Browse public" tab lists open public rooms. Press Join on one |
+
+A room shows up in the list only if **all three** are true: it is public (Private is unticked), it is still in the lobby, and it is not full. The list shows the host's name, `players/max`, rounds and draw time, and nothing else (no player names). It holds at most **10 rooms**, fullest first, and refreshes every 5 seconds (or press Refresh).
+
+The list is only for **finding** rooms. Joining uses the same `join_room` event as before, and the server re-checks everything. So if a room fills up while you were looking at the list, you just get "Room is full".
+
+```mermaid
+sequenceDiagram
+    participant B as Browser
+    participant S as Server
+    B->>S: list_public_rooms
+    S->>S: keep rooms that are public + lobby + not full, fullest first, max 10
+    S-->>B: ack { ok, rooms: [{ code, hostName, playerCount, maxPlayers, rounds, drawTime }] }
+    B->>S: join_room { roomId, playerName } (user clicked Join)
+    S->>S: normal join checks (room exists, lobby, not full...)
+    S-->>B: ack { ok, playerId, room } or { ok:false, error }
+```
 
 ### 7.2 Word modes
 
@@ -295,7 +334,7 @@ The word list has 5 categories (animals, objects, food, actions, places) with 25
 
 ### 7.3 Lobby
 
-- The room code is shown at the top. Share it with friends.
+- The room code is shown at the top. Share it with friends, or press **Copy invite link**. The link looks like `https://your-site/?room=482913`; opening it jumps straight to the Join tab with the code filled in.
 - 👑 marks the host. ⏳ means not ready. ✅ means ready.
 - **Guests** press **Ready**. The **host** presses **Start**.
 - Start only works when there are **at least 2 players** and **all guests are ready**.
@@ -365,10 +404,13 @@ Example: 80 seconds and 2 hints, so letters appear at 26s and 53s. At most **hal
 
 | Who | Points |
 |---|---|
-| **Guesser** | `100 + 400 x (time left / total draw time)`: between 100 and 500. Faster means more |
-| **Drawer** | The **average** of what all guessers earned (guessers who failed count as 0) |
+| **Guesser** | `50 + 300 x (time left / total draw time) + order bonus`. Between 50 and 500 |
+| **Order bonus** | 1st correct guesser +150, 2nd +100, 3rd +50, everyone after +0 |
+| **Drawer** | **Half** of the average of what all guessers earned (guessers who failed count as 0) |
 
-So the drawer is rewarded for drawing something that many people guess quickly.
+So speed wins: a fast, first guess is worth up to 500, a slow last guess about 50-100. The drawer is rewarded for drawing something that many people guess quickly, and earns nothing if nobody guesses.
+
+**Why the drawer only gets half the average:** if the drawer got the *full* average, then in a game where every player draws once, everyone's total would come out almost the same (with 2 players it is mathematically always a tie). Paying the drawer less than a typical guesser makes the player who guesses best finish on top.
 
 ### 7.9 When does a turn end?
 
@@ -412,6 +454,7 @@ After the last turn the server sends the leaderboard and the winner (or a tie me
 |---|---|---|---|---|
 | `create_room` | `{ hostName, settings }` | `{ ok, playerId, room }` or `{ ok:false, error }` | Anyone not already in a room | Name required (max 20 chars); settings clamped |
 | `join_room` | `{ roomId, playerName }` | `{ ok, playerId, room }` or error | Anyone not already in a room | Name; code is 6 digits; room exists; still in lobby; not full |
+| `list_public_rooms` | none | `{ ok, rooms: [{ code, hostName, playerCount, maxPlayers, rounds, drawTime }] }` | Anyone | Only public, lobby-phase, non-full rooms; max 10, fullest first |
 | `toggle_ready` | none | `{ ok }` | A player in a lobby | Must be in a room in lobby phase |
 | `start_game` | none | `{ ok }` or error | **Host only** | Lobby phase; 2+ players; all guests ready |
 | `play_again` | none | `{ ok }` or error | **Host only** | Game must be over |
@@ -598,12 +641,12 @@ sequenceDiagram
     P->>S: guess { text: "  LEMON " }
     S->>S: trim, lowercase, compare with the secret word
     alt correct
-        S->>S: points = 100 + 400 x timeLeft/drawTime
+        S->>S: points = 50 + 300 x timeLeft/drawTime + order bonus
         S-->>All: guess_result { correct, playerName, points }
         S-->>All: players_update (new scores)
         S->>S: has everybody guessed?
         opt yes
-            S->>S: stop timer, drawer gets average points
+            S->>S: stop timer, drawer gets half the average guesser score
             S-->>All: round_end { word, scores, nextDrawer }
             S->>S: wait 5 seconds, start next turn
         end
@@ -681,6 +724,7 @@ Checks run in this order for every request: **valid data, in a room, right phase
 ```
 skribbl_clone/
 ├── package.json            Root scripts: dev, build, start, install:all
+├── render.yaml             Render deployment settings (build/start/health check/Node version)
 ├── README.md               This file
 ├── .gitignore              Keeps node_modules, dist, .env out of git
 │
@@ -690,7 +734,7 @@ skribbl_clone/
 │       ├── index.js            Starts Express + Socket.IO; serves client/dist; /health
 │       ├── MessageHandler.js   One per connection: receives events, checks rules, replies
 │       ├── RoomManager.js      All rooms by code; makes unique 6-digit codes
-│       ├── Room.js             Players, settings, host, phase; broadcast helpers
+│       ├── Room.js             Players, settings, host, phase; broadcast helpers; public listing
 │       ├── Player.js           One player (name, score, ready); safe public view
 │       ├── Game.js             Turns, timer, word, hints, scoring, chat routing
 │       ├── DrawingBoard.js     Stores and validates strokes; undo; clear
@@ -712,7 +756,8 @@ skribbl_clone/
         └── components/
             ├── Home.jsx          Name, create room (settings), join room
             ├── SettingsForm.jsx  The settings inputs
-            ├── Lobby.jsx         Room code, players, Ready/Start
+            ├── BrowseRooms.jsx   Public room list (polls every 5s), Join buttons
+            ├── Lobby.jsx         Room code, invite link, players, Ready/Start
             ├── Game.jsx          Game screen: header, canvas, overlays
             ├── Canvas.jsx        The canvas, toolbar, sending strokes
             ├── Chat.jsx          Chat and guess box
@@ -745,20 +790,27 @@ flowchart TD
 
 ## 12. Deployment
 
-The plan is **one service on Railway** (Render works the same way). WebSockets need a server that stays running, so Vercel and Netlify alone can't host this backend.
+The app is deployed as **one Web Service on Render**. Express serves the built React app *and* the Socket.IO server from the same port, so there is only one thing to deploy and no CORS to configure.
+
+**Why not Vercel or Netlify alone?** Their backends are *serverless functions*: they start for one request and then stop, so they cannot keep a WebSocket open. The game needs a server that stays running. (They could host only the React frontend, with the backend elsewhere, but that adds a second deployment, CORS rules and a server URL setting for no benefit here.) Render and Railway both run a normal, always-on Node process, so WebSockets work.
 
 | Setting | Value |
 |---|---|
+| Service type | Web Service (Node) |
 | Build command | `npm run build` |
 | Start command | `npm start` |
 | Port | Provided automatically through `PORT` |
 | Health check | `/health` |
+| Node version | 20 (`NODE_VERSION` env var) |
+| Instances | **1** (game state lives in memory) |
+
+These settings are also written down in `render.yaml` in the project root, so the service can be recreated from the repo.
 
 **What happens on deploy:**
 
 ```mermaid
 flowchart LR
-    G["GitHub repo"] --> R["Railway clones it"]
+    G["GitHub repo"] --> R["Render clones it"]
     R --> B["npm run build: install deps, build React into client/dist"]
     B --> S["npm start: Node serves client/dist + Socket.IO on PORT"]
     S --> U["Public URL"]
@@ -766,16 +818,19 @@ flowchart LR
 
 **Steps**
 1. Push the repository to GitHub.
-2. On Railway: **New Project, Deploy from GitHub repo**.
+2. On Render: **New, Web Service**, connect the repo (or use the `render.yaml` Blueprint).
 3. Confirm the build and start commands above.
-4. In **Settings, Networking**, click **Generate Domain**.
-5. Open the URL, then `/health`, then test creating and joining a room from two devices.
-6. Put the URL at the top of this README.
+4. After the build, open the URL, then `/health`, then test creating and joining a room from two devices.
+5. Put the URL at the top of this README.
 
-**Platform notes**
+(Railway works the same way: it reads the same `build` and `start` scripts. Just click **Generate Domain** under Networking.)
+
+**Platform notes and constraints**
 - `client/dist` is not committed. It is built on the server during deploy.
-- All game state is in memory, so **run exactly one instance**.
-- Restarting the server ends all running games.
+- **The build installs dev dependencies on purpose.** Hosting platforms set `NODE_ENV=production`, which makes `npm install` skip dev dependencies, but Vite (the build tool) is one. The root `build` script therefore runs `npm --prefix client install --include=dev`. Without it the deploy fails with "vite: not found".
+- **Free tier sleeps** after about 15 minutes with no traffic. The next visit wakes it up, which takes up to a minute. Pinging `/health` every few minutes with a free uptime monitor keeps it awake.
+- All game state is in memory, so **run exactly one instance**, and a restart or redeploy ends every running game.
+- WebSockets and HTTPS: the browser connects with `io()` and no address, so it automatically uses `wss://` on the https site. Nothing to configure.
 
 ---
 
@@ -784,14 +839,16 @@ flowchart LR
 | Limitation | Why | Planned fix |
 |---|---|---|
 | Refreshing the page drops you from the room | Your identity is the socket, which changes on reconnect | Session token saved in the browser |
-| No public room list | `isPrivate` is stored but not used yet | A "browse rooms" screen |
-| No invite links | Join is by code only | `/room/CODE` links |
+| 6-digit codes can be guessed by brute force | Only 1,000,000 possibilities | Rate-limit join attempts |
+| Public list refreshes by polling (5s) | Simpler than live push | Socket.IO "browser" room with broadcasts |
 | No kick/ban | Not built yet | Host-only kick |
 | No chat rate limit | Not built yet | Limit messages per second |
 | No way to leave a room except closing the tab | No `leave_room` event | Add the event |
 | Late joiners can't join a running game | Joining is only allowed in the lobby | Spectator mode |
 | Only one server instance | Rooms live in memory | Redis if scaling |
-| Browser tested only by scripts so far | UI has not had a full manual test pass | Manual test before deploy |
+| Free hosting sleeps when idle (first load up to ~1 min) | Render free tier | Free uptime monitor pinging `/health` every ~5 min (planned), or a paid plan |
+| Restart or redeploy ends all running games | State is in memory only | Persist state (Redis) if needed |
+| Scores are tuned by feel | Constants in `Game.js` | Adjust after more playtesting |
 
 ---
 

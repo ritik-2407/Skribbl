@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { socket } from '../socket.js';
 import SettingsForm from './SettingsForm.jsx';
+import BrowseRooms from './BrowseRooms.jsx';
 
 const DEFAULT_SETTINGS = {
   maxPlayers: 8,
@@ -12,11 +13,18 @@ const DEFAULT_SETTINGS = {
   isPrivate: true,
 };
 
+// Invite link: https://site/?room=482913 opens straight on the Join tab with the code filled in.
+// Read once, validated (6 digits only) - never trust anything from the URL.
+function codeFromUrl() {
+  const raw = new URLSearchParams(window.location.search).get('room') ?? '';
+  return /^\d{6}$/.test(raw) ? raw : '';
+}
+
 export default function Home({ onEnter }) {
   const [name, setName] = useState('');
-  const [code, setCode] = useState('');
+  const [code, setCode] = useState(codeFromUrl); // lazy init: runs once
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
-  const [mode, setMode] = useState('create'); // 'create' | 'join'
+  const [mode, setMode] = useState(() => (codeFromUrl() ? 'join' : 'create')); // 'create' | 'join' | 'browse'
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -50,15 +58,22 @@ export default function Home({ onEnter }) {
 
       <div className="tabs">
         <button type="button" className={mode === 'create' ? 'tab active' : 'tab'} onClick={() => setMode('create')}>Create room</button>
-        <button type="button" className={mode === 'join' ? 'tab active' : 'tab'} onClick={() => setMode('join')}>Join room</button>
+        <button type="button" className={mode === 'join' ? 'tab active' : 'tab'} onClick={() => setMode('join')}>Join with code</button>
+        <button type="button" className={mode === 'browse' ? 'tab active' : 'tab'} onClick={() => setMode('browse')}>Browse public</button>
       </div>
 
-      {mode === 'create' ? (
+      {mode === 'create' && (
         <form onSubmit={handleCreate}>
           <SettingsForm settings={settings} onChange={setSettings} />
           <button type="submit" disabled={busy}>Create room</button>
         </form>
-      ) : (
+      )}
+
+      {mode === 'browse' && (
+        <BrowseRooms busy={busy} onJoin={(roomCode) => submit('join_room', { roomId: roomCode, playerName: name })} />
+      )}
+
+      {mode === 'join' && (
         <form onSubmit={handleJoin}>
           <label>
             Room code

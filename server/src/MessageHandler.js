@@ -18,6 +18,7 @@ export class MessageHandler {
     const s = this.socket;
     s.on('create_room', (data, ack) => this.safe(ack, () => this.onCreateRoom(data, ack)));
     s.on('join_room', (data, ack) => this.safe(ack, () => this.onJoinRoom(data, ack)));
+    s.on('list_public_rooms', (_data, ack) => this.safe(ack, () => this.onListPublicRooms(ack)));
     s.on('toggle_ready', (_data, ack) => this.safe(ack, () => this.onToggleReady(ack)));
     s.on('start_game', (_data, ack) => this.safe(ack, () => this.onStartGame(ack)));
     s.on('play_again', (_d, ack) => this.safe(ack, () => this.onPlayAgain(ack)));
@@ -135,6 +136,12 @@ export class MessageHandler {
       player: player.toPublic(room.hostId),
       players: room.playersPublic(),
     });
+  }
+
+  // Discovery only: joining still goes through join_room, which re-validates everything.
+  onListPublicRooms(ack) {
+    if (typeof ack !== 'function') return;
+    ack({ ok: true, rooms: this.roomManager.listPublic() });
   }
 
   onToggleReady(ack) {

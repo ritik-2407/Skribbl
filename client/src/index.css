@@ -106,3 +106,10 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 ol.players { padding-left: 0; list-style: none; }
 ol.players li { display: flex; justify-content: space-between; }
 .ok { color: #7CFC9A; }
+
+/* public rooms + invite */
+.row.between { justify-content: space-between; align-items: center; }
+.row.between h3 { margin: 0; }
+.room-row { display: flex; justify-content: space-between; align-items: center; }
+.invite { display: flex; gap: 8px; margin: 12px 0; }
+.invite input { flex: 1; min-width: 0; font-size: 14px; }

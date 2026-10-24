@@ -61,6 +61,24 @@ export class Room {
     };
   }
 
+  // A SMALL summary for the public room browser. Deliberately leaves out player names
+  // and everything else a stranger doesn't need before joining.
+  toListing() {
+    return {
+      code: this.code,
+      hostName: this.players.get(this.hostId)?.name ?? 'Unknown',
+      playerCount: this.players.size,
+      maxPlayers: this.settings.maxPlayers,
+      rounds: this.settings.rounds,
+      drawTime: this.settings.drawTime,
+    };
+  }
+
+  // Joinable by a stranger browsing: public, still in the lobby, and has space.
+  get isListable() {
+    return !this.settings.isPrivate && this.phase === 'lobby' && !this.isFull && !this.isEmpty;
+  }
+
   // Everyone has pressed ready except the host (host starts the game).
   allGuestsReady() {
     return [...this.players.values()].every((p) => p.id === this.hostId || p.isReady);
