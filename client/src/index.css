@@ -77,3 +77,32 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .swatch.selected { border-color: #fff; transform: scale(1.15); }
 .players.inline { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
 .players.inline li { margin: 0; }
+
+/* game screen */
+.container.wide { max-width: 1100px; }
+.game-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-size: 18px; }
+.game-body { display: grid; grid-template-columns: 200px 1fr 260px; gap: 12px; align-items: start; }
+@media (max-width: 900px) { .game-body { grid-template-columns: 1fr; } }
+.stage-canvas { position: relative; }
+.overlay {
+  position: absolute; inset: 0; background: #0009; border-radius: 8px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; padding: 12px;
+}
+.word { color: #ffd54f; letter-spacing: 2px; }
+.hint { display: inline-flex; align-items: flex-end; gap: 6px; font-size: 26px; font-family: monospace; }
+.hint .letter { display: inline-block; min-width: 18px; border-bottom: 3px solid #fff; text-align: center; line-height: 1.1; }
+.hint .gap { display: inline-block; width: 16px; }
+.timer.low { color: #ff7b7b; font-weight: bold; }
+.scoreboard h3, .chat h3 { margin: 0 0 8px; }
+.scoreboard .players li { display: flex; justify-content: space-between; }
+.scoreboard .players li.guessed { background: #2e7d4f; }
+.chat { display: flex; flex-direction: column; height: 460px; }
+.chat-list { flex: 1; overflow-y: auto; font-size: 14px; margin-bottom: 8px; }
+.msg { padding: 2px 0; word-break: break-word; }
+.msg.system { color: #aab4d4; font-style: italic; }
+.msg.system.correct { color: #7CFC9A; font-weight: bold; font-style: normal; }
+.msg.system.close { color: #ffd54f; }
+.msg.private { color: #7CFC9A; }
+ol.players { padding-left: 0; list-style: none; }
+ol.players li { display: flex; justify-content: space-between; }
+.ok { color: #7CFC9A; }

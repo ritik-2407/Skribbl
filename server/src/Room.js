@@ -14,6 +14,7 @@ export class Room {
     this.players = new Map(); // socket.id -> Player (Map keeps insertion order = join order)
     this.drawerId = null; // who may draw right now (v3 rotates this per round)
     this.board = new DrawingBoard();
+    this.game = null; // created when the host starts the game
   }
 
   get isFull() {
@@ -63,6 +64,28 @@ export class Room {
   // Everyone has pressed ready except the host (host starts the game).
   allGuestsReady() {
     return [...this.players.values()].every((p) => p.id === this.hostId || p.isReady);
+  }
+
+  // Send to ONE player (a socket always has a private room named after its own id).
+  emitTo(playerId, event, payload) {
+    this.io.to(playerId).emit(event, payload);
+  }
+
+  broadcastPlayers() {
+    this.broadcast('players_update', { players: this.playersPublic(), hostId: this.hostId });
+  }
+
+  // "Play again": back to a clean lobby with the same players.
+  resetToLobby() {
+    this.game?.destroy();
+    this.game = null;
+    this.phase = 'lobby';
+    this.drawerId = null;
+    this.board.clear();
+    for (const p of this.players.values()) {
+      p.score = 0;
+      p.isReady = false;
+    }
   }
 
   // Send to every socket that has joined this room's Socket.IO "room".

@@ -1,4 +1,5 @@
 import { sanitizeName, sanitizeSettings } from './settings.js';
+import { Game } from './Game.js';
 
 const ROOM_CODE_RE = /^\d{6}$/;
 const MIN_PLAYERS_TO_START = 2;
@@ -19,6 +20,10 @@ export class MessageHandler {
     s.on('join_room', (data, ack) => this.safe(ack, () => this.onJoinRoom(data, ack)));
     s.on('toggle_ready', (_data, ack) => this.safe(ack, () => this.onToggleReady(ack)));
     s.on('start_game', (_data, ack) => this.safe(ack, () => this.onStartGame(ack)));
+    s.on('play_again', (_d, ack) => this.safe(ack, () => this.onPlayAgain(ack)));
+    s.on('word_chosen', (d) => this.safe(null, () => this.onWordChosen(d)));
+    s.on('guess', (d) => this.safe(null, () => this.onMessage(d)));
+    s.on('chat', (d) => this.safe(null, () => this.onMessage(d)));
     // Drawing events are fire-and-forget (no ack): they fire dozens of times per second.
     s.on('draw_start', (d) => this.safe(null, () => this.onDrawStart(d)));
     s.on('draw_move', (d) => this.safe(null, () => this.onDrawMove(d)));
@@ -33,6 +38,7 @@ export class MessageHandler {
   drawingRoom() {
     const room = this.currentRoom();
     if (!room || room.phase !== 'playing') return null;
+    if (room.game?.phase !== 'drawing') return null; // can't draw while choosing a word
     if (room.drawerId !== this.socket.id) return null;
     return room;
   }
@@ -154,9 +160,36 @@ export class MessageHandler {
     if (!room.allGuestsReady()) return ack({ ok: false, error: 'Waiting for players to ready up' });
 
     room.phase = 'playing';
-    // v2 placeholder: the host draws. v3 replaces this with real turn rotation.
-    room.drawerId = room.hostId;
-    room.broadcast('game_state', { phase: room.phase, round: 0, drawerId: room.drawerId });
+    room.game = new Game(room);
+    ack({ ok: true }); // ack first so the host's UI is ready before the first events arrive
+    room.game.start(); // emits round_start / game_state to everyone
+  }
+
+  onWordChosen(data) {
+    const room = this.currentRoom();
+    if (!room?.game) return;
+    room.game.chooseWord(this.socket.id, data?.word);
+  }
+
+  // 'guess' and 'chat' both go through the same server-side router.
+  onMessage(data) {
+    const room = this.currentRoom();
+    if (!room) return;
+    const player = room.getPlayer(this.socket.id);
+    if (room.game) room.game.handleMessage(player, data?.text);
+    else {
+      const text = typeof data?.text === 'string' ? data.text.trim().slice(0, 100) : '';
+      if (text) room.broadcast('chat_message', { playerId: player.id, playerName: player.name, text });
+    }
+  }
+
+  onPlayAgain(ack) {
+    const room = this.currentRoom();
+    if (!room) return ack({ ok: false, error: 'Not in a room' });
+    if (room.hostId !== this.socket.id) return ack({ ok: false, error: 'Only the host can restart' });
+    if (room.phase !== 'ended') return ack({ ok: false, error: 'Game is not over' });
+    room.resetToLobby();
+    room.broadcast('room_reset', { room: room.toPublic() });
     ack({ ok: true });
   }
 
@@ -166,20 +199,16 @@ export class MessageHandler {
 
     room.removePlayer(this.socket.id);
     if (room.isEmpty) {
+      room.game?.destroy(); // stop the timers or they leak forever
       this.roomManager.deleteRoom(room.code); // no leaks: empty rooms are removed
       return;
-    }
-    // If the drawer left mid-game, hand the pen to the (possibly new) host.
-    if (room.phase === 'playing' && room.drawerId === this.socket.id) {
-      room.drawerId = room.hostId;
-      room.board.clear();
-      room.broadcast('game_state', { phase: room.phase, round: 0, drawerId: room.drawerId });
-      room.broadcast('canvas_clear');
     }
     room.broadcast('player_left', {
       playerId: this.socket.id,
       players: room.playersPublic(),
       hostId: room.hostId,
     });
+    // Tell the game AFTER the player is removed, so it sees the up-to-date player list.
+    room.game?.onPlayerLeft(this.socket.id);
   }
 }
