@@ -1,13 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
+import { Eraser, Undo2, Trash2 } from 'lucide-react';
 import { socket } from '../socket.js';
 import { CanvasBoard, CANVAS_WIDTH, CANVAS_HEIGHT, BACKGROUND } from '../drawing.js';
 
 const COLORS = ['#000000', '#ffffff', '#e53935', '#fb8c00', '#fdd835', '#43a047', '#1e88e5', '#8e24aa', '#6d4c41', '#ec407a'];
-const SIZES = [
-  { label: 'Thin', value: 4 },
-  { label: 'Medium', value: 10 },
-  { label: 'Thick', value: 22 },
-];
+const SIZES = [4, 10, 22]; // thin / medium / thick, shown as line samples
 const FLUSH_MS = 30; // batch pointer moves into one network message every 30ms
 
 export default function Canvas({ isDrawer }) {
@@ -18,7 +15,7 @@ export default function Canvas({ isDrawer }) {
   const timerRef = useRef(null);
 
   const [color, setColor] = useState('#000000');
-  const [size, setSize] = useState(SIZES[1].value);
+  const [size, setSize] = useState(SIZES[1]);
   const [eraser, setEraser] = useState(false);
 
   // Create the board once, and subscribe to what the server relays from the drawer.
@@ -131,17 +128,31 @@ export default function Canvas({ isDrawer }) {
               />
             ))}
           </div>
-          <div className="row">
+          <div className="sizes">
             {SIZES.map((s) => (
-              <button key={s.value} type="button" className={size === s.value ? 'tab active' : 'tab'} onClick={() => setSize(s.value)}>
-                {s.label}
+              <button
+                key={s}
+                type="button"
+                aria-label={`brush size ${s}`}
+                className={size === s ? 'tool active' : 'tool'}
+                onClick={() => setSize(s)}
+              >
+                <svg width="44" height="28" viewBox="0 0 44 28" aria-hidden="true">
+                  <line x1="8" y1="14" x2="36" y2="14" stroke={eraser ? '#9a8c8c' : color} strokeWidth={s} strokeLinecap="round" />
+                </svg>
               </button>
             ))}
-            <button type="button" className={eraser ? 'tab active' : 'tab'} onClick={() => setEraser((v) => !v)}>
-              Eraser
+          </div>
+          <div className="actions">
+            <button type="button" aria-label="Eraser" title="Eraser" className={eraser ? 'tool active' : 'tool'} onClick={() => setEraser((v) => !v)}>
+              <Eraser size={22} />
             </button>
-            <button type="button" className="tab" onClick={undo}>Undo</button>
-            <button type="button" className="tab" onClick={clear}>Clear</button>
+            <button type="button" aria-label="Undo" title="Undo" className="tool" onClick={undo}>
+              <Undo2 size={22} />
+            </button>
+            <button type="button" aria-label="Clear canvas" title="Clear canvas" className="tool" onClick={clear}>
+              <Trash2 size={22} />
+            </button>
           </div>
         </div>
       )}

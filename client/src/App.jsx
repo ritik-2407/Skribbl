@@ -29,7 +29,7 @@ export default function App() {
 
   return (
     <main className={inGame ? 'container wide' : 'container'}>
-      <Logo />
+      {!inGame && <Logo />} {/* hidden in-game: vertical space goes to the canvas and tools */}
       {!s.room && <Home onEnter={s.enterRoom} notice={s.notice} onDismissNotice={s.dismissNotice} />}
       {s.room && s.room.phase === 'lobby' && (
         <Lobby room={s.room} playerId={s.playerId} onLeave={s.leaveRoom} onKick={s.kickPlayer} />

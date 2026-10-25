@@ -44,7 +44,7 @@ h2 { font-size: 30px; }
 h3 { font-size: 24px; }
 
 .container { max-width: 660px; margin: 28px auto; padding: 0 16px; }
-.container.wide { max-width: 1100px; }
+.container.wide { max-width: min(1600px, 97vw); margin-top: 12px; }
 
 .logo {
   text-align: center;
@@ -146,7 +146,6 @@ ol.players li, .scoreboard .players li, .room-row { display: flex; justify-conte
 /* ---------- canvas ---------- */
 .board {
   width: 100%;
-  max-width: 800px;
   aspect-ratio: 4 / 3;
   background: #fff;
   border: 3px solid var(--ink);
@@ -159,10 +158,16 @@ ol.players li, .scoreboard .players li, .room-row { display: flex; justify-conte
 .toolbar {
   margin-top: 14px;
   display: flex;
-  flex-direction: column;
-  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px 24px;
 }
-.swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+.swatches { display: grid; grid-template-columns: repeat(5, auto); gap: 8px; }
+.sizes, .actions { display: flex; gap: 8px; }
+.tool { padding: 4px 8px; display: grid; place-items: center; min-width: 52px; }
+.tool.active { background: var(--butter); transform: translate(2px, 3px); box-shadow: 0 0 0 var(--ink); }
+.tool.active:hover:not(:disabled) { background: var(--butter); transform: translate(2px, 3px); box-shadow: 0 0 0 var(--ink); }
 .swatch {
   width: 34px; height: 34px; padding: 0;
   border-radius: 50% 45% 52% 48%;
@@ -177,19 +182,25 @@ ol.players li, .scoreboard .players li, .room-row { display: flex; justify-conte
   background: var(--sage);
   border-radius: var(--wobble-sm);
 }
-.game-body { display: grid; grid-template-columns: 200px 1fr 260px; gap: 14px; align-items: start; }
+.game-body { display: grid; grid-template-columns: 220px minmax(0, 1fr) 300px; gap: 14px; align-items: start; }
 @media (max-width: 960px) { .game-body { grid-template-columns: 1fr; } }
 .game-body .card { padding: 14px 16px; border-radius: 18px 8px 20px 8px / 8px 20px 8px 18px; }
 
-.stage-canvas { position: relative; }
+/* Canvas never taller than the viewport, so the toolbar stays on screen (desktop only) */
+.stage-canvas { position: relative; width: 100%; margin-inline: auto; }
+@media (min-width: 961px) { .stage-canvas { max-width: calc((100dvh - 300px) * 4 / 3); min-width: 480px; } }
 .overlay {
+  overflow-y: auto;
+  justify-content: safe center;
   position: absolute; inset: 0;
   background: #fbf3e4ee;
   border: 3px solid var(--ink);
   border-radius: 14px 6px 16px 6px;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  display: flex; flex-direction: column; align-items: center;
   gap: 10px; text-align: center; padding: 14px;
 }
+.overlay h3 { margin: 0; }
+.overlay .players { margin: 0; width: 100%; max-width: 360px; }
 
 .word { color: #d9604f; letter-spacing: 2px; font-family: 'Gochi Hand', cursive; font-size: 1.2em; }
 .hint { display: inline-flex; align-items: flex-end; gap: 6px; font-size: 30px; font-family: 'Gochi Hand', cursive; }
@@ -202,7 +213,7 @@ ol.players li, .scoreboard .players li, .room-row { display: flex; justify-conte
 .scoreboard h3, .chat h3 { margin: 0 0 8px; }
 .scoreboard .players li.guessed { background: var(--sage); }
 
-.chat { display: flex; flex-direction: column; height: 460px; }
+.chat { display: flex; flex-direction: column; height: clamp(360px, calc(100dvh - 220px), 700px); }
 .chat-list { flex: 1; overflow-y: auto; font-size: 16px; margin-bottom: 8px; padding-right: 4px; }
 .msg { padding: 3px 0; word-break: break-word; border-bottom: 1.5px dotted #4a3b3b22; }
 .msg.system { color: var(--ink-soft); font-style: italic; }
@@ -248,6 +259,11 @@ body { min-height: 100dvh; }
   .timer { font-size: 22px; }
 
   .chat { height: 240px; }
+  /* Small canvas: shrink the round-end results so they fit inside the overlay */
+  .overlay { gap: 6px; padding: 8px; }
+  .overlay h3 { font-size: 20px; }
+  .overlay .players li { padding: 2px 10px; margin-bottom: 4px; font-size: 15px; }
+  .overlay .muted { margin: 0; font-size: 14px; }
   .invite { flex-direction: column; }
   .invite input { width: 100%; }
   .leave-row .cta { flex: 1 1 100%; }

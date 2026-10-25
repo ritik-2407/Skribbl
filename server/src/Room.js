@@ -41,6 +41,12 @@ export class Room {
     return removed;
   }
 
+  // Names must be unique per room (case-insensitive), otherwise the scoreboard and chat are ambiguous.
+  hasName(name) {
+    const n = name.toLowerCase();
+    return [...this.players.values()].some((p) => p.name.toLowerCase() === n);
+  }
+
   getPlayer(id) {
     return this.players.get(id);
   }

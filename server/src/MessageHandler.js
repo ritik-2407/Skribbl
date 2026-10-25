@@ -127,6 +127,7 @@ export class MessageHandler {
     if (!room) return ack({ ok: false, error: 'Room not found' });
     if (room.phase !== 'lobby') return ack({ ok: false, error: 'Game already started' });
     if (room.isFull) return ack({ ok: false, error: 'Room is full' });
+    if (room.hasName(playerName)) return ack({ ok: false, error: 'That name is already taken in this room' });
 
     const player = room.addPlayer(this.socket.id, playerName);
     this.socket.join(room.code);

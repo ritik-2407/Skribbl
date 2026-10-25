@@ -130,6 +130,9 @@ export class Game {
     const hintCount =
       this.settings.wordMode === 'hidden' ? 0 : Math.min(this.settings.hints, Math.floor(letters / 2));
     const { drawTime } = this.settings;
+
+  
+    
     this.hintTimes = Array.from({ length: hintCount }, (_, i) =>
       Math.floor((drawTime * (i + 1)) / (hintCount + 1))
     );
