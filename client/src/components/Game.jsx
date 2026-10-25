@@ -1,3 +1,4 @@
+import { Timer, LogOut } from 'lucide-react';
 import { socket } from '../socket.js';
 import Canvas from './Canvas.jsx';
 import Chat from './Chat.jsx';
@@ -18,10 +19,23 @@ function Hint({ game, isDrawer }) {
   );
 }
 
-export default function Game({ room, playerId, game, messages, wordOptions, roundEnd, gameOver }) {
+export default function Game({ room, playerId, game, messages, wordOptions, roundEnd, gameOver, leaveRoom, kickPlayer }) {
   if (game.phase === 'ended' && gameOver) {
-    return <GameOver gameOver={gameOver} room={room} playerId={playerId} />;
+    return <GameOver gameOver={gameOver} room={room} playerId={playerId} onLeave={leaveRoom} />;
   }
+
+  const isHost = room.hostId === playerId;
+
+  // Leaving mid-game ends your turn in the game and drops you from the scoreboard, so confirm first.
+  const leave = () => {
+    if (window.confirm('Leave the game? You will lose your place and score.')) leaveRoom();
+  };
+  const kick = (p) => {
+    if (!window.confirm(`Remove ${p.name} from the game?`)) return;
+    kickPlayer(p.id, (res) => {
+      if (!res?.ok) window.alert(res?.error ?? 'Could not remove player');
+    });
+  };
 
   const isDrawer = game.drawerId === playerId;
   const hasGuessed = game.guessed.includes(playerId);
@@ -33,11 +47,19 @@ export default function Game({ room, playerId, game, messages, wordOptions, roun
       <div className="game-top card">
         <span>Round {game.round}/{game.totalRounds}</span>
         <Hint game={game} isDrawer={isDrawer} />
-        <span className={game.timeLeft <= 10 ? 'timer low' : 'timer'}>⏱ {Math.max(0, game.timeLeft)}s</span>
+        <span className={game.timeLeft <= 10 ? 'timer low' : 'timer'}><Timer size={18} className="ico" /> {Math.max(0, game.timeLeft)}s</span>
+        <button type="button" className="tab" onClick={leave}><LogOut size={16} /> Leave</button>
       </div>
 
       <div className="game-body">
-        <Scoreboard players={room.players} drawerId={game.drawerId} guessed={game.guessed} playerId={playerId} />
+        <Scoreboard
+          players={room.players}
+          drawerId={game.drawerId}
+          guessed={game.guessed}
+          playerId={playerId}
+          canKick={isHost}
+          onKick={kick}
+        />
 
         <div className="stage card">
           <p className="muted">{isDrawer ? 'You are drawing!' : `${drawer?.name ?? 'Someone'} is drawing`}</p>

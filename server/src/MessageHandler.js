@@ -19,6 +19,8 @@ export class MessageHandler {
     s.on('create_room', (data, ack) => this.safe(ack, () => this.onCreateRoom(data, ack)));
     s.on('join_room', (data, ack) => this.safe(ack, () => this.onJoinRoom(data, ack)));
     s.on('list_public_rooms', (_data, ack) => this.safe(ack, () => this.onListPublicRooms(ack)));
+    s.on('leave_room', (_data, ack) => this.safe(ack, () => this.onLeaveRoom(ack)));
+    s.on('kick_player', (data, ack) => this.safe(ack, () => this.onKickPlayer(data, ack)));
     s.on('toggle_ready', (_data, ack) => this.safe(ack, () => this.onToggleReady(ack)));
     s.on('start_game', (_data, ack) => this.safe(ack, () => this.onStartGame(ack)));
     s.on('play_again', (_d, ack) => this.safe(ack, () => this.onPlayAgain(ack)));
@@ -200,22 +202,63 @@ export class MessageHandler {
     ack({ ok: true });
   }
 
-  onDisconnect() {
+  // Voluntary exit. Same cleanup as a disconnect, but the socket stays connected,
+  // so we must also detach it from the room ourselves.
+  onLeaveRoom(ack) {
     const room = this.currentRoom();
-    if (!room) return;
+    if (!room) return ack({ ok: false, error: 'Not in a room' });
 
-    room.removePlayer(this.socket.id);
+    // Detach FIRST so the leaver doesn't receive the broadcast about their own exit.
+    this.socket.leave(room.code);
+    this.socket.data.roomCode = undefined;
+    this.removeFromRoom(room, this.socket.id, 'left');
+    ack({ ok: true });
+  }
+
+  // Host moderation. Authorization: host only, never yourself, target must be in THIS room
+  // (the room comes from the host's socket, never from the payload).
+  onKickPlayer(data, ack) {
+    const room = this.currentRoom();
+    if (!room) return ack({ ok: false, error: 'Not in a room' });
+    if (room.hostId !== this.socket.id) return ack({ ok: false, error: 'Only the host can remove players' });
+
+    const targetId = typeof data?.playerId === 'string' ? data.playerId : '';
+    if (targetId === this.socket.id) return ack({ ok: false, error: "You can't remove yourself, use Leave" });
+    if (!room.players.has(targetId)) return ack({ ok: false, error: 'Player not found' });
+
+    // playerId === socket.id, so we can reach the kicked player's connection directly.
+    const target = this.io.sockets.sockets.get(targetId);
+    if (target) {
+      target.emit('kicked', { reason: 'removed by the host' });
+      target.leave(room.code);
+      target.data.roomCode = undefined; // their later disconnect must not touch this room again
+    }
+    this.removeFromRoom(room, targetId, 'kicked');
+    ack({ ok: true });
+  }
+
+  // One cleanup path for ALL ways of leaving (disconnect, leave button, kick),
+  // so host handover, empty-room deletion and game updates can never drift apart.
+  removeFromRoom(room, playerId, reason) {
+    room.removePlayer(playerId);
     if (room.isEmpty) {
       room.game?.destroy(); // stop the timers or they leak forever
       this.roomManager.deleteRoom(room.code); // no leaks: empty rooms are removed
       return;
     }
     room.broadcast('player_left', {
-      playerId: this.socket.id,
+      playerId,
       players: room.playersPublic(),
       hostId: room.hostId,
+      reason,
     });
     // Tell the game AFTER the player is removed, so it sees the up-to-date player list.
-    room.game?.onPlayerLeft(this.socket.id);
+    room.game?.onPlayerLeft(playerId);
+  }
+
+  onDisconnect() {
+    const room = this.currentRoom();
+    if (!room) return; // already left or was kicked: nothing to clean up
+    this.removeFromRoom(room, this.socket.id, 'disconnected');
   }
 }

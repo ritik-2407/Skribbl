@@ -13,6 +13,7 @@ export function useGameSocket() {
   const [wordOptions, setWordOptions] = useState(null); // only the drawer gets these
   const [roundEnd, setRoundEnd] = useState(null);
   const [gameOver, setGameOver] = useState(null);
+  const [notice, setNotice] = useState(''); // one-off message for the Home screen (e.g. "you were removed")
 
   const roomRef = useRef(null);
   roomRef.current = room; // lets socket callbacks read the latest room without re-subscribing
@@ -45,9 +46,17 @@ export function useGameSocket() {
       setRoom((r) => r && { ...r, players });
       addMessage({ system: true, text: `${player.name} joined` });
     };
-    const onPlayerLeft = ({ playerId: id, players, hostId }) => {
-      addMessage({ system: true, text: `${nameOf(id)} left` });
+    const onPlayerLeft = ({ playerId: id, players, hostId, reason }) => {
+      const verb = reason === 'kicked' ? 'was removed by the host' : 'left';
+      addMessage({ system: true, text: `${nameOf(id)} ${verb}` });
       setRoom((r) => r && { ...r, players, hostId });
+    };
+    // We were removed by the host: drop everything and tell the player why on the Home screen.
+    const onKicked = () => {
+      setRoom(null);
+      setPlayerId(null);
+      resetGameState();
+      setNotice('The host removed you from the room.');
     };
     const onPlayersUpdate = ({ players, hostId }) => setRoom((r) => r && { ...r, players, hostId });
 
@@ -84,6 +93,7 @@ export function useGameSocket() {
       disconnect: onDisconnect,
       player_joined: onPlayerJoined,
       player_left: onPlayerLeft,
+      kicked: onKicked,
       players_update: onPlayersUpdate,
       game_state: onGameState,
       timer: onTimer,
@@ -107,11 +117,33 @@ export function useGameSocket() {
   const enterRoom = useCallback(
     (res) => {
       resetGameState();
+      setNotice('');
       setPlayerId(res.playerId);
       setRoom(res.room);
     },
     [resetGameState]
   );
 
-  return { connected, playerId, room, game, messages, wordOptions, roundEnd, gameOver, enterRoom };
+  // Leave on purpose. We only clear local state once the SERVER confirms, so the
+  // screen can never say "you left" while the server still thinks you're in the room.
+  const leaveRoom = useCallback(() => {
+    socket.emit('leave_room', {}, (res) => {
+      if (res?.ok) {
+        setRoom(null);
+        setPlayerId(null);
+        resetGameState();
+      }
+    });
+  }, [resetGameState]);
+
+  // Host only (the server enforces it). `done` gets the server's { ok, error } reply.
+  const kickPlayer = useCallback((targetId, done) => {
+    socket.emit('kick_player', { playerId: targetId }, done);
+  }, []);
+
+  return {
+    connected, playerId, room, game, messages, wordOptions, roundEnd, gameOver,
+    notice, dismissNotice: () => setNotice(''),
+    enterRoom, leaveRoom, kickPlayer,
+  };
 }

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { RefreshCw, LogIn } from 'lucide-react';
 import { socket } from '../socket.js';
 
 const REFRESH_MS = 5000;
@@ -25,7 +26,7 @@ export default function BrowseRooms({ onJoin, busy }) {
     <div>
       <div className="row between">
         <h3>Public rooms</h3>
-        <button type="button" className="tab" onClick={load}>Refresh</button>
+        <button type="button" className="tab" onClick={load}><RefreshCw size={16} /> Refresh</button>
       </div>
 
       {rooms === null && <p className="muted">Loading...</p>}
@@ -43,7 +44,7 @@ export default function BrowseRooms({ onJoin, busy }) {
                 {r.playerCount}/{r.maxPlayers} players · {r.rounds} rounds · {r.drawTime}s
               </small>
             </span>
-            <button type="button" disabled={busy} onClick={() => onJoin(r.code)}>Join</button>
+            <button type="button" disabled={busy} onClick={() => onJoin(r.code)}><LogIn size={16} /> Join</button>
           </li>
         ))}
       </ul>

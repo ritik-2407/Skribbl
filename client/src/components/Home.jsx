@@ -2,6 +2,15 @@ import { useState } from 'react';
 import { socket } from '../socket.js';
 import SettingsForm from './SettingsForm.jsx';
 import BrowseRooms from './BrowseRooms.jsx';
+import { Plus, LogIn, Globe } from 'lucide-react';
+import '../moderation.css';
+
+// [id, label, icon]. Labels name the PLACE (a tab); the big button inside names the ACTION.
+const MODES = [
+  ['create', 'Create', Plus],
+  ['join', 'Join', LogIn],
+  ['browse', 'Browse', Globe],
+];
 
 const DEFAULT_SETTINGS = {
   maxPlayers: 8,
@@ -20,7 +29,7 @@ function codeFromUrl() {
   return /^\d{6}$/.test(raw) ? raw : '';
 }
 
-export default function Home({ onEnter }) {
+export default function Home({ onEnter, notice, onDismissNotice }) {
   const [name, setName] = useState('');
   const [code, setCode] = useState(codeFromUrl); // lazy init: runs once
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
@@ -50,22 +59,42 @@ export default function Home({ onEnter }) {
   };
 
   return (
+    <>
+      {/* Separate bar ABOVE the card: it navigates between modes, the card below is the active mode's form. */}
+      <nav className="mode-nav" role="tablist">
+        {MODES.map(([id, label, Icon]) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={mode === id}
+            className={mode === id ? 'tab active' : 'tab'}
+            onClick={() => { setMode(id); setError(''); }}
+          >
+            <Icon size={18} /> {label}
+          </button>
+        ))}
+      </nav>
+
     <div className="card">
+      {notice && (
+        <div className="notice bad">
+          <span>{notice}</span>
+          <button type="button" className="tab" onClick={onDismissNotice}>OK</button>
+        </div>
+      )}
       <label>
         Your name
         <input value={name} maxLength={20} onChange={(e) => setName(e.target.value)} placeholder="e.g. Ritik" />
       </label>
 
-      <div className="tabs">
-        <button type="button" className={mode === 'create' ? 'tab active' : 'tab'} onClick={() => setMode('create')}>Create room</button>
-        <button type="button" className={mode === 'join' ? 'tab active' : 'tab'} onClick={() => setMode('join')}>Join with code</button>
-        <button type="button" className={mode === 'browse' ? 'tab active' : 'tab'} onClick={() => setMode('browse')}>Browse public</button>
-      </div>
-
       {mode === 'create' && (
         <form onSubmit={handleCreate}>
+          <p className="muted mode-help">Set up a new game and invite your friends.</p>
           <SettingsForm settings={settings} onChange={setSettings} />
-          <button type="submit" disabled={busy}>Create room</button>
+          <button type="submit" className="cta" disabled={busy}>
+            <Plus size={20} /> {busy ? 'Creating...' : 'Create room'}
+          </button>
         </form>
       )}
 
@@ -75,6 +104,7 @@ export default function Home({ onEnter }) {
 
       {mode === 'join' && (
         <form onSubmit={handleJoin}>
+          <p className="muted mode-help">Enter the 6-digit code your friend shared.</p>
           <label>
             Room code
             <input
@@ -85,11 +115,14 @@ export default function Home({ onEnter }) {
               placeholder="6 digits"
             />
           </label>
-          <button type="submit" disabled={busy}>Join room</button>
+          <button type="submit" className="cta" disabled={busy}>
+            <LogIn size={20} /> {busy ? 'Joining...' : 'Join room'}
+          </button>
         </form>
       )}
 
       {error && <p className="bad">{error}</p>}
     </div>
+    </>
   );
 }

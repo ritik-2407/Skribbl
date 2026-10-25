@@ -1,0 +1,24 @@
+/* Layout-only rules for the leave/kick buttons. Colors and button looks come from
+   whichever theme is active (index.css or clay.css), via the existing .tab class. */
+.player-line { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.kick-btn { padding: 2px 12px; font-size: 14px; flex-shrink: 0; }
+.leave-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 4px; }
+.notice { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 12px; }
+
+/* ---------- icons + mode nav + primary button (layout only) ---------- */
+.tab, .cta, .kick-btn, .room-row button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.ico { vertical-align: middle; margin-left: 6px; flex-shrink: 0; }
+.ico.host { color: #d49a1a; }
+.ico.ok { color: #3f8f55; }
+.ico.wait { color: var(--ink-soft); }
+
+.mode-nav { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 0 0 18px; }
+.mode-nav .tab { padding: 10px 14px; font-size: 20px; }
+.mode-help { margin: 0 0 12px; }
+
+/* The one loud button per screen: full width, big, easy to hit with a thumb. */
+.cta { width: 100%; padding: 12px 20px; font-size: 22px; margin-top: 6px; }
+.leave-row .cta { width: auto; flex: 1 1 200px; margin-top: 0; }
+
+.logo-ico { vertical-align: -6px; color: #e0766a; margin-right: 4px; }
+.container.wide .logo-ico { width: 30px; height: 30px; vertical-align: -4px; }
